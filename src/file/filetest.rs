@@ -1,11 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::{
+        file::{blockid::BlockId, page::Page},
+        server::simpledb::SimpleDB,
+    };
+
     use std::fs;
 
     #[test]
     fn filetest() {
-        let db = SimpleDB::new("filetest", 400, 8);
+        let db = SimpleDB::new("filetest", 400, 8).unwrap();
         let fm = db.file_mgr();
 
         let blk = BlockId::new("testfile", 2);

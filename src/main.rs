@@ -1,26 +1,44 @@
+use file::blockid::BlockId;
+
+use crate::server::simpledb::SimpleDB;
+
+mod buffer;
 mod file;
+mod log;
 mod server;
 
-use file::blockid::BlockId;
-use file::page::Page;
-use server::simpledb::SimpleDB;
-
 fn main() {
-    let db = SimpleDB::new("filetest", 400, 8);
-    let fm = db.file_mgr();
+    let mut db = SimpleDB::new("buffermgrtest", 400, 3).unwrap();
+    let bm = db.buffer_mgr();
+    bm.set_max_time(1);
 
-    let blk = BlockId::new("testfile", 2);
-    let mut p1 = Page::new(fm.block_size());
-    let pos1 = 88;
-    p1.set_string(pos1, "abcdefghijklm");
-    let size = Page::max_length("abcdefghijklm".len());
-    let pos2 = pos1 + size;
-    p1.set_int(pos2, 345);
-    fm.write(&blk, &mut p1).unwrap();
+    let mut buff = Vec::with_capacity(6);
+    buff.push(bm.pin(&BlockId::new("testfile", 0)).unwrap());
+    buff.push(bm.pin(&BlockId::new("testfile", 1)).unwrap());
+    buff.push(bm.pin(&BlockId::new("testfile", 2)).unwrap());
+    bm.unpin(buff[1]);
+    buff[1] = 10;
+    buff.push(bm.pin(&BlockId::new("testfile", 0)).unwrap());
+    buff.push(bm.pin(&BlockId::new("testfile", 1)).unwrap());
+    println!("Available buffers: {}", bm.available());
 
-    let mut p2 = Page::new(fm.block_size());
-    fm.read(&blk, &mut p2).unwrap();
+    println!("Attempting to pin block 3...");
+    if bm.pin(&BlockId::new("testfile", 3)).is_err() {
+        println!("Error: No available buffers\n");
+    }
+    bm.unpin(buff[2]);
+    buff[2] = 10;
+    buff.push(bm.pin(&BlockId::new("testfile", 3)).unwrap());
 
-    println!("offset {} contains {}", pos2, p2.get_int(pos2));
-    println!("offset {} contains {}", pos1, p2.get_string(pos1).unwrap());
+    println!("Final Buffer Allocation:");
+    for (i, idx) in buff.iter().enumerate() {
+        if *idx != 10 {
+            let b = bm.buffer(*idx);
+            println!(
+                "buff[{}] pinned to block {}",
+                i,
+                b.block().as_ref().unwrap()
+            );
+        }
+    }
 }
